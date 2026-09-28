@@ -65,3 +65,47 @@ Every stage requires:
 3. failure-path tests,
 4. documented limitations,
 5. reproducible setup.
+
+
+## Non-negotiable engineering requirements
+
+### Tests are required for every subsystem
+
+No feature is considered complete without:
+- unit tests for normal behavior
+- edge-case tests
+- invalid-input/failure-path tests
+- integration tests where components interact
+- regression tests for every bug discovered
+- a runnable demo or acceptance test for user-visible behavior
+
+### Design for future needs
+
+New components must expose clean interfaces so they can later support:
+- local or cloud inference
+- model replacement/upgrades
+- streaming
+- multimodal inputs
+- tool calling
+- memory/retrieval
+- job queues and retries
+- authentication/authorization
+- observability
+- persistence and migrations
+- rate limiting
+- cancellation/resume
+- versioned model/configuration APIs
+
+Do not over-engineer unused infrastructure, but avoid hard-coding assumptions that would block these future capabilities.
+
+### Interruption/resume protocol
+
+Work must be checkpointed in Git frequently. A network interruption must not erase completed work.
+
+Before stopping a milestone:
+1. commit the completed changes,
+2. keep the roadmap/status accurate,
+3. record known failures or next actions,
+4. never claim a feature is verified unless its tests/demo actually ran.
+
+If a session disconnects, the next session resumes from the latest committed repository state and continues from the recorded status. Active execution itself is not guaranteed to continue while the user is offline.

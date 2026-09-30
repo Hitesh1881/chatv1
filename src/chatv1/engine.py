@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .inference import GenerationConfig, generate_text
 from .memory import MemoryStore
@@ -9,7 +9,7 @@ from .rag import RetrievedChunk, build_context
 class ChatEngineRequest:
     conversation_id: str
     prompt: str
-    generation: GenerationConfig = GenerationConfig()
+    generation: GenerationConfig = field(default_factory=GenerationConfig)
     retrieve_top_k: int = 0
 
 

@@ -7,7 +7,7 @@ def test_lexical_retriever_ranks_matching_chunks():
         Document("a", "Python API authentication tokens", "a", {}),
         Document("b", "React components and hooks", "b", {}),
     ]
-    chunks = tuple(c for d in docs for c in chunk_document(d, chunk_size=100))
+    chunks = tuple(c for d in docs for c in chunk_document(d, chunk_size=100, overlap=20))
     results = LexicalRetriever(chunks).retrieve("Python authentication", top_k=1)
     assert len(results) == 1
     assert results[0].chunk.document_id == "a"

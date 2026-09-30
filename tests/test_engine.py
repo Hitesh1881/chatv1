@@ -25,7 +25,7 @@ def test_engine_without_context():
 
 
 def test_engine_uses_memory():
-    tokenizer = CharTokenizer("User: Assistant: hello python\\n[memory]")
+    tokenizer = CharTokenizer("Context:\\n[memory] python\\n\\nUser: python\\nAssistant:")
     memory = InMemoryStore()
     memory.put(MemoryItem("1", "c1", "python"))
     engine = ChatEngine(model=DummyModel(), tokenizer=tokenizer, memory=memory)

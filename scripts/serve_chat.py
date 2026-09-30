@@ -8,7 +8,10 @@ from chatv1.chat_service import ChatService
 from chatv1.conversation import InMemoryConversationStore
 from chatv1.engine import ChatEngine
 from chatv1.device import get_device
+from chatv1.memory import InMemoryStore
 from chatv1.model import ChatV1, ModelConfig
+from chatv1.rag import Document, chunk_document
+from chatv1.retrieval import LexicalRetriever
 from chatv1.tokenizer import CharTokenizer
 
 
@@ -28,10 +31,15 @@ def main() -> None:
         raise SystemExit(f"Missing checkpoint: {checkpoint}. Run scripts/train_tiny.py first.")
     device = get_device()
     model, tokenizer = load_model(checkpoint, device)
-    service = ChatService(ChatEngine(model=model, tokenizer=tokenizer), InMemoryConversationStore())
+    memory = InMemoryStore()
+    docs = [Document("demo", "ChatV1 is an original research AI system with retrieval, memory, local image generation, and a modular inference layer.", "demo-doc", {})]
+    chunks = tuple(chunk for doc in docs for chunk in chunk_document(doc))
+    retriever = LexicalRetriever(chunks)
+    engine = ChatEngine(model=model, tokenizer=tokenizer, memory=memory, retriever=retriever)
+    service = ChatService(engine, InMemoryConversationStore())
     server = HTTPServer(("127.0.0.1", 8001), make_chat_handler(lambda: service))
     print("Chat API: http://127.0.0.1:8001/v1/chat/completions")
-    print(f"Device: {device}")
+    print(f"Device: {device} | RAG: on | Memory: on")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

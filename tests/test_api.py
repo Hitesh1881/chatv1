@@ -8,7 +8,7 @@ def test_valid_request():
 
 
 @pytest.mark.parametrize(
-    "request",
+    "chat_request",
     [
         ChatRequest(prompt=""),
         ChatRequest(prompt="hello", max_new_tokens=0),
@@ -16,6 +16,6 @@ def test_valid_request():
         ChatRequest(prompt="hello", top_k=-1),
     ],
 )
-def test_invalid_requests(request):
+def test_invalid_requests(chat_request):
     with pytest.raises(ValueError):
-        validate_request(request)
+        validate_request(chat_request)

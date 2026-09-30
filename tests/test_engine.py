@@ -10,7 +10,9 @@ from chatv1.tokenizer import CharTokenizer
 
 class DummyModel(nn.Module):
     def __init__(self):
-        super().__init__(); self.weight = nn.Parameter(torch.zeros(1))
+        super().__init__()
+        self.weight = nn.Parameter(torch.zeros(1))
+
     def generate(self, input_ids, **kwargs):
         return input_ids
 

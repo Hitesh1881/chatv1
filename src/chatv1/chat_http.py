@@ -1,10 +1,12 @@
 import json
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler
-from typing import Callable
+
+import torch
 
 from .chat_service import ChatService
+from .engine import ChatEngineRequest
 from .inference import GenerationConfig, stream_token_ids
-import torch
 
 MAX_BODY_BYTES = 64 * 1024
 MAX_PROMPT_CHARS = 8_000
@@ -31,7 +33,7 @@ def make_chat_handler(service_factory: Callable[[], ChatService]):
                 raise ValueError("request body is too large")
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
-                raise ValueError("JSON body must be an object")
+                raise TypeError("JSON body must be an object")
             conversation_id = str(payload.get("conversation_id", "default"))
             prompt = str(payload.get("prompt", ""))
             if not conversation_id.strip() or len(conversation_id) > MAX_CONVERSATION_ID_CHARS:
@@ -53,16 +55,28 @@ def make_chat_handler(service_factory: Callable[[], ChatService]):
                 return
             try:
                 conversation_id, prompt, payload = self._read_request()
+                service = service_factory()
                 if self.path.endswith("/stream") or bool(payload.get("stream")):
-                    service = service_factory()
-                    result = service.engine
                     conversation = service.conversations.get(conversation_id)
                     conversation.add("user", prompt)
-                    request = __import__("chatv1.engine", fromlist=["ChatEngineRequest"]).ChatEngineRequest(conversation_id, prompt, GenerationConfig(), service.retrieve_top_k)
-                    context, _ = result._context(request)
-                    full_prompt = f"Context:\\n{context}\\n\\nUser: {prompt}\\nAssistant:" if context else f"User: {prompt}\\nAssistant:"
+                    request = ChatEngineRequest(
+                        conversation_id,
+                        prompt,
+                        GenerationConfig(),
+                        service.retrieve_top_k,
+                    )
+                    context, _ = service.engine._context(request)
+                    full_prompt = (
+                        f"Context:\n{context}\n\nUser: {prompt}\nAssistant:"
+                        if context
+                        else f"User: {prompt}\nAssistant:"
+                    )
                     ids = service.engine.tokenizer.encode(full_prompt)
-                    input_ids = torch.tensor([ids], dtype=torch.long, device=next(service.engine.model.parameters()).device)
+                    input_ids = torch.tensor(
+                        [ids],
+                        dtype=torch.long,
+                        device=next(service.engine.model.parameters()).device,
+                    )
                     self.send_response(200)
                     self.send_header("Content-Type", "text/event-stream")
                     self.send_header("Cache-Control", "no-cache")
@@ -73,23 +87,27 @@ def make_chat_handler(service_factory: Callable[[], ChatService]):
                     for token_id in stream_token_ids(service.engine.model, input_ids, request.generation):
                         token = service.engine.tokenizer.decode([token_id])
                         generated.append(token)
-                        self.wfile.write(("data: " + json.dumps({"token": token}) + "\\n\\n").encode())
+                        self.wfile.write(
+                            ("data: " + json.dumps({"token": token}) + "\n\n").encode()
+                        )
                         self.wfile.flush()
                     conversation.add("assistant", "".join(generated))
                     service.conversations.save(conversation)
-                    self.wfile.write(b"data: [DONE]\\n\\n")
+                    self.wfile.write(b"data: [DONE]\n\n")
                     self.wfile.flush()
                     return
-                result = service_factory().reply(conversation_id, prompt)
+                result = service.reply(conversation_id, prompt)
                 self._json(200, {"conversation_id": result.conversation_id, "text": result.text})
             except (ValueError, TypeError, json.JSONDecodeError) as exc:
                 self._json(400, {"error": "invalid_request", "message": str(exc)})
-            except Exception:
+            except Exception:  # noqa: BLE001
                 if self.path.endswith("/stream"):
                     try:
-                        self.wfile.write(("data: " + json.dumps({"error": "chat_failed"}) + "\\n\\n").encode())
+                        self.wfile.write(
+                            ("data: " + json.dumps({"error": "chat_failed"}) + "\n\n").encode()
+                        )
                         self.wfile.flush()
-                    except Exception:
+                    except OSError:
                         pass
                 else:
                     self._json(500, {"error": "chat_failed"})

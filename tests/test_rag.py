@@ -1,6 +1,6 @@
 import pytest
 
-from chatv1.rag import Chunk, Document, RetrievedChunk, build_context, chunk_document
+from chatv1.rag import Document, RetrievedChunk, build_context, chunk_document
 
 
 def test_chunk_document_and_context():

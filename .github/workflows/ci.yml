@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -26,3 +30,5 @@ jobs:
         run: pytest -q
       - name: Compile
         run: python -m compileall -q src scripts
+      - name: Import smoke test
+        run: python -c "from chatv1.engine import ChatEngine; from chatv1.retrieval import LexicalRetriever; from chatv1.conversation_sqlite import SQLiteConversationStore; print('ChatV1 smoke imports OK')"

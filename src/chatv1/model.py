@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Iterator
 import torch
 from torch import nn
 
@@ -23,13 +24,7 @@ class CausalSelfAttention(nn.Module):
         self.qkv = nn.Linear(cfg.n_embd, 3 * cfg.n_embd)
         self.proj = nn.Linear(cfg.n_embd, cfg.n_embd)
         self.dropout = nn.Dropout(cfg.dropout)
-        self.register_buffer(
-            "mask",
-            torch.tril(torch.ones(cfg.block_size, cfg.block_size)).view(
-                1, 1, cfg.block_size, cfg.block_size
-            ),
-            persistent=False,
-        )
+        self.register_buffer("mask", torch.tril(torch.ones(cfg.block_size, cfg.block_size)).view(1, 1, cfg.block_size, cfg.block_size), persistent=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         b, t, c = x.shape
@@ -48,12 +43,7 @@ class CausalSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, cfg: ModelConfig):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(cfg.n_embd, 4 * cfg.n_embd),
-            nn.GELU(),
-            nn.Linear(4 * cfg.n_embd, cfg.n_embd),
-            nn.Dropout(cfg.dropout),
-        )
+        self.net = nn.Sequential(nn.Linear(cfg.n_embd, 4 * cfg.n_embd), nn.GELU(), nn.Linear(4 * cfg.n_embd, cfg.n_embd), nn.Dropout(cfg.dropout))
 
     def forward(self, x):
         return self.net(x)
@@ -95,21 +85,28 @@ class ChatV1(nn.Module):
         logits = self.lm_head(self.ln_f(x))
         loss = None
         if targets is not None:
-            loss = nn.functional.cross_entropy(
-                logits.reshape(-1, logits.size(-1)), targets.reshape(-1)
-            )
+            loss = nn.functional.cross_entropy(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
         return logits, loss
 
+    def _sample(self, logits, temperature, top_k):
+        logits = logits / max(temperature, 1e-5)
+        if top_k:
+            values, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            logits[logits < values[:, [-1]]] = float("-inf")
+        return torch.multinomial(torch.softmax(logits, dim=-1), 1)
+
     @torch.no_grad()
-    def generate(self, idx, max_new_tokens=64, temperature=0.8, top_k=40):
+    def generate_stream(self, idx, max_new_tokens=64, temperature=0.8, top_k=40) -> Iterator[int]:
         for _ in range(max_new_tokens):
             context = idx[:, -self.cfg.block_size:]
             logits, _ = self(context)
-            logits = logits[:, -1, :] / max(temperature, 1e-5)
-            if top_k:
-                values, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                logits[logits < values[:, [-1]]] = float("-inf")
-            probs = torch.softmax(logits, dim=-1)
-            next_token = torch.multinomial(probs, 1)
+            next_token = self._sample(logits[:, -1, :], temperature, top_k)
             idx = torch.cat((idx, next_token), dim=1)
+            yield int(next_token[0, 0])
+
+    @torch.no_grad()
+    def generate(self, idx, max_new_tokens=64, temperature=0.8, top_k=40):
+        for token_id in self.generate_stream(idx, max_new_tokens, temperature, top_k):
+            token = torch.tensor([[token_id]], device=idx.device)
+            idx = torch.cat((idx, token), dim=1)
         return idx

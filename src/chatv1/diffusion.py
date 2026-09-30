@@ -18,8 +18,8 @@ class DiffusionConfig:
 class LocalDiffusionGenerator:
     """Lazy-loaded local Diffusers backend for Apple Silicon/CUDA/CPU."""
 
-    def __init__(self, config: DiffusionConfig = DiffusionConfig()) -> None:
-        self.config = config
+    def __init__(self, config: DiffusionConfig | None = None) -> None:
+        self.config = config or DiffusionConfig()
         self._pipeline = None
 
     def _device(self) -> str:

@@ -75,7 +75,7 @@ class ChatV1(nn.Module):
         self.lm_head.weight = self.token_emb.weight
 
     def forward(self, idx, targets=None):
-        b, t = idx.shape
+        _, t = idx.shape
         if t > self.cfg.block_size:
             raise ValueError(f"sequence length {t} exceeds block size {self.cfg.block_size}")
         pos = torch.arange(t, device=idx.device)

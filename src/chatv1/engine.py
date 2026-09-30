@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Callable
 
 from .inference import GenerationConfig, generate_text
 from .memory import MemoryStore
@@ -40,13 +39,13 @@ class ChatEngine:
         if self.retriever is not None and request.retrieve_top_k:
             results: list[RetrievedChunk] = self.retriever.retrieve(request.prompt, top_k=request.retrieve_top_k)
             parts.append(build_context(results, max_chunks=request.retrieve_top_k))
-        return "\n\n".join(parts), memory_count
+        return "\\n\\n".join(parts), memory_count
 
     def respond(self, request: ChatEngineRequest) -> ChatEngineResponse:
         if not request.conversation_id.strip() or not request.prompt.strip():
             raise ValueError("conversation_id and prompt are required")
         context, memory_count = self._context(request)
-        prompt = f"Context:\n{context}\n\nUser: {request.prompt}\nAssistant:" if context else f"User: {request.prompt}\nAssistant:"
+        prompt = f"Context:\\n{context}\\n\\nUser: {request.prompt}\\nAssistant:" if context else f"User: {request.prompt}\\nAssistant:"
         ids = self.tokenizer.encode(prompt)
         import torch
         input_ids = torch.tensor([ids], dtype=torch.long, device=next(self.model.parameters()).device)

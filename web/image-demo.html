@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChatV1 Image Lab</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;background:#111;color:#eee}textarea,input,button{font:inherit}textarea{width:100%;min-height:120px;padding:12px;box-sizing:border-box;background:#1b1b1b;color:#fff;border:1px solid #444;border-radius:10px}button{margin-top:12px;padding:11px 18px;border:0;border-radius:9px;cursor:pointer}.row{display:flex;gap:10px;margin-top:10px}.row input{width:120px;padding:9px;background:#1b1b1b;color:#fff;border:1px solid #444;border-radius:8px}.status{margin:15px 0;color:#aaa}img{max-width:100%;border-radius:12px;margin-top:10px}button:disabled{opacity:.5;cursor:wait}
+</style>
+</head>
+<body>
+<h1>ChatV1 Image Lab</h1>
+<p>Local open-model image generation demo.</p>
+<textarea id="prompt" placeholder="Describe the image you want..."></textarea>
+<div class="row"><input id="width" type="number" value="512"><input id="height" type="number" value="512"><input id="steps" type="number" value="20"></div>
+<button id="generate">Generate Image</button>
+<div class="status" id="status"></div>
+<img id="result" alt="Generated image" hidden>
+<script>
+const button=document.querySelector('#generate'),status=document.querySelector('#status'),result=document.querySelector('#result');
+button.onclick=async()=>{
+ const prompt=document.querySelector('#prompt').value.trim();
+ if(!prompt){status.textContent='Enter a prompt first.';return}
+ button.disabled=true;result.hidden=true;status.textContent='Generating...';
+ try{
+  const res=await fetch('http://127.0.0.1:8000/v1/images/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,width:+document.querySelector('#width').value,height:+document.querySelector('#height').value,steps:+document.querySelector('#steps').value})});
+  const data=await res.json(); if(!res.ok) throw new Error(data.message||data.error||'Generation failed');
+  result.src='data:'+data.mime_type+';base64,'+data.image_base64;result.hidden=false;status.textContent='Generated successfully.';
+ }catch(e){status.textContent='Error: '+e.message}finally{button.disabled=false}
+};
+</script>
+</body>
+</html>

@@ -17,7 +17,11 @@ User: what is Python?
 Assistant: Python is a programming language used to build software and automation.
 User: explain React.
 Assistant: React is a library for building user interfaces from components.
-""" * 200
+User: what is RAG?
+Assistant: RAG retrieves relevant information and adds it to a model context before generation.
+User: what is memory?
+Assistant: Memory stores useful conversation information so it can be reused later.
+""" * 300
 
 OUT = Path("artifacts")
 
@@ -29,27 +33,33 @@ def batch(data: torch.Tensor, block_size: int, batch_size: int, device: torch.de
     return x, y
 
 
+def save_checkpoint(path: Path, cfg: ModelConfig, tok: CharTokenizer, model: ChatV1, opt, step: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save({"config": cfg.__dict__, "tokenizer": tok.state_dict(), "state_dict": model.state_dict(), "optimizer": opt.state_dict(), "step": step}, path)
+
+
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Train the small ChatV1 research model")
     parser.add_argument("--steps", type=int, default=400)
+    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--block-size", type=int, default=128)
+    parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--resume", type=Path)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
-
-    if args.steps <= 0:
-        raise ValueError("--steps must be positive")
-
+    if args.steps <= 0 or args.batch_size <= 0 or args.block_size <= 0 or args.lr <= 0:
+        raise ValueError("training parameters must be positive")
     random.seed(args.seed)
     torch.manual_seed(args.seed)
     tok = CharTokenizer(TEXT)
     data = torch.tensor(tok.encode(TEXT), dtype=torch.long)
-
-    cfg = ModelConfig(vocab_size=tok.vocab_size, block_size=128, n_layer=4, n_head=4, n_embd=128)
+    if len(data) <= args.block_size + 1:
+        raise ValueError("training text is too short for block size")
+    cfg = ModelConfig(vocab_size=tok.vocab_size, block_size=args.block_size, n_layer=4, n_head=4, n_embd=128)
     device = get_device()
     model = ChatV1(cfg).to(device)
-    opt = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.1)
+    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.1)
     start_step = 0
-
     if args.resume:
         checkpoint = torch.load(args.resume, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint["state_dict"])
@@ -57,44 +67,20 @@ def main():
             opt.load_state_dict(checkpoint["optimizer"])
         start_step = int(checkpoint.get("step", 0))
         print(f"resumed step={start_step} from {args.resume}")
-
     model.train()
     for step in range(start_step, start_step + args.steps):
-        x, y = batch(data, cfg.block_size, 16, device)
+        x, y = batch(data, cfg.block_size, args.batch_size, device)
         _, loss = model(x, y)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
-
         if step % 50 == 0:
             print(f"step={step} loss={loss.item():.4f}")
-
         if (step + 1) % 100 == 0:
-            OUT.mkdir(exist_ok=True)
-            torch.save(
-                {
-                    "config": cfg.__dict__,
-                    "tokenizer": tok.state_dict(),
-                    "state_dict": model.state_dict(),
-                    "optimizer": opt.state_dict(),
-                    "step": step + 1,
-                },
-                OUT / "tiny_chatv1_latest.pt",
-            )
-
-    OUT.mkdir(exist_ok=True)
+            save_checkpoint(OUT / "tiny_chatv1_latest.pt", cfg, tok, model, opt, step + 1)
     final = OUT / "tiny_chatv1.pt"
-    torch.save(
-        {
-            "config": cfg.__dict__,
-            "tokenizer": tok.state_dict(),
-            "state_dict": model.state_dict(),
-            "optimizer": opt.state_dict(),
-            "step": start_step + args.steps,
-        },
-        final,
-    )
+    save_checkpoint(final, cfg, tok, model, opt, start_step + args.steps)
     print(f"saved {final}")
 
 

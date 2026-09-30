@@ -15,12 +15,12 @@ def test_image_generation_contract():
     assert result.mime_type == "image/png"
 
 
-@pytest.mark.parametrize("request", [
+@pytest.mark.parametrize("image_request", [
     ImageGenerationRequest(""),
     ImageGenerationRequest("x", width=0),
     ImageGenerationRequest("x", height=3000),
     ImageGenerationRequest("x", steps=0),
 ])
-def test_image_request_validation(request):
+def test_image_request_validation(image_request):
     with pytest.raises(ValueError):
-        request.validate()
+        image_request.validate()

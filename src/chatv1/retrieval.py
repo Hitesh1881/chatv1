@@ -13,10 +13,10 @@ class LexicalRetriever:
             raise ValueError("query must not be empty")
         if top_k <= 0:
             raise ValueError("top_k must be positive")
-        terms = set(re.findall(r"\\w+", query.lower()))
+        terms = set(re.findall(r"\w+", query.lower()))
         scored: list[RetrievedChunk] = []
         for chunk in self.chunks:
-            words = set(re.findall(r"\\w+", chunk.text.lower()))
+            words = set(re.findall(r"\w+", chunk.text.lower()))
             score = len(terms & words)
             if score:
                 scored.append(RetrievedChunk(chunk, float(score)))

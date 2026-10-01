@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+import torch
+
 from .inference import GenerationConfig, generate_text
 from .memory import MemoryStore
 from .rag import RetrievedChunk, build_context
@@ -41,19 +43,40 @@ class ChatEngine:
             parts.append(build_context(results, max_chunks=request.retrieve_top_k))
         return "\n\n".join(parts), memory_count
 
+    def _generate(self, prompt: str, generation: GenerationConfig) -> str:
+        ids = self.tokenizer.encode(prompt)
+        # Reserve room for generation and keep the end of the prompt, where
+        # the current User question and Assistant marker live.
+        reserve = min(generation.max_new_tokens, self.model.cfg.block_size - 1)
+        max_input = max(1, self.model.cfg.block_size - reserve)
+        ids = ids[-max_input:]
+        input_ids = torch.tensor(
+            [ids],
+            dtype=torch.long,
+            device=next(self.model.parameters()).device,
+        )
+        output = generate_text(self.model, input_ids, generation)
+        generated = output[0, input_ids.size(1):].tolist()
+        return self.tokenizer.decode(generated)
+
     def respond(self, request: ChatEngineRequest) -> ChatEngineResponse:
         if not request.conversation_id.strip() or not request.prompt.strip():
             raise ValueError("conversation_id and prompt are required")
         context, memory_count = self._context(request)
-        prompt = f"Context:\n{context}\n\nUser: {request.prompt}\nAssistant:" if context else f"User: {request.prompt}\nAssistant:"
-        ids = self.tokenizer.encode(prompt)
-        import torch
-        input_ids = torch.tensor([ids], dtype=torch.long, device=next(self.model.parameters()).device)
-        output = generate_text(self.model, input_ids, request.generation)
-        # Some causal models truncate long prompts to their context window before
-        # generating. Slice from the actual returned sequence length rather than
-        # the original prompt length, otherwise RAG can make valid generations
-        # look empty when len(ids) > the model's block size.
-        generated_start = min(len(ids), output.size(1))
-        text = self.tokenizer.decode(output[0, generated_start:].tolist())
+        prompt = (
+            f"Context:\n{context}\n\nUser: {request.prompt}\nAssistant:"
+            if context
+            else f"User: {request.prompt}\nAssistant:"
+        )
+        text = self._generate(prompt, request.generation)
+
+        # If context made the tiny bootstrap model produce only whitespace,
+        # retry against the learned User/Assistant format without RAG context.
+        # This is still model inference; it is not a canned answer.
+        if not text.strip() and context:
+            text = self._generate(
+                f"User: {request.prompt}\nAssistant:",
+                request.generation,
+            )
+
         return ChatEngineResponse(text=text, context=context, memory_count=memory_count)

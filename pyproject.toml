@@ -7,7 +7,7 @@ name = "chatv1"
 version = "0.1.0"
 description = "Original, testable AI research system"
 requires-python = ">=3.11"
-dependencies = ["torch>=2.4"]
+dependencies = ["torch>=2.4", "transformers>=4.45", "safetensors>=0.4"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.8"]

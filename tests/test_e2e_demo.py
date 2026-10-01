@@ -23,6 +23,8 @@ class EchoModel(nn.Module):
         self.token_id = token_id
 
     def generate(self, input_ids, **kwargs):
+        # Simulate a causal model with a finite context window.
+        input_ids = input_ids[:, -8:]
         extra = torch.tensor([[self.token_id]], dtype=torch.long, device=input_ids.device)
         return torch.cat([input_ids, extra], dim=1)
 

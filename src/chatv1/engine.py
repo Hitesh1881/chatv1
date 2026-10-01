@@ -53,7 +53,7 @@ class ChatEngine:
         input_ids = torch.tensor(
             [ids],
             dtype=torch.long,
-            device=next(self.model.parameters()).device,
+            device=getattr(self.model, "device", next(self.model.parameters()).device),
         )
         output = generate_text(self.model, input_ids, generation)
         generated = output[0, input_ids.size(1):].tolist()

@@ -32,7 +32,7 @@ checkpoint = torch.load(sys.argv[1], map_location="cpu", weights_only=False)
 tokenizer = CharTokenizer.from_state_dict(checkpoint["tokenizer"])
 tokenizer.encode("ok")
 tokenizer.encode("User: hello\nAssistant:")
-if int(checkpoint.get("training_version", 0)) < 2:
+if int(checkpoint.get("training_version", 0)) < 3:
     raise ValueError("training corpus version is stale")
 PY
   then
@@ -43,7 +43,7 @@ fi
 
 if [[ "$NEEDS_TRAINING" -eq 1 ]]; then
   echo "Training the real ChatV1 tiny model with the current tokenizer..."
-  "$PYTHON" "$ROOT/scripts/train_tiny.py" --steps 2000
+  "$PYTHON" "$ROOT/scripts/train_tiny.py" --steps 3000
 fi
 
 echo "Starting ChatV1 local services..."

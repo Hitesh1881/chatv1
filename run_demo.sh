@@ -31,10 +31,12 @@ from chatv1.tokenizer import CharTokenizer
 checkpoint = torch.load(sys.argv[1], map_location="cpu", weights_only=False)
 tokenizer = CharTokenizer.from_state_dict(checkpoint["tokenizer"])
 tokenizer.encode("ok")
-tokenizer.encode("User: hello\nAssistant:")\nif int(checkpoint.get("training_version", 0)) < 2:\n    raise ValueError("training corpus version is stale")
+tokenizer.encode("User: hello\nAssistant:")
+if int(checkpoint.get("training_version", 0)) < 2:
+    raise ValueError("training corpus version is stale")
 PY
   then
-    echo "Existing checkpoint tokenizer is stale for the current demo."
+    echo "Existing checkpoint is stale for the current demo."
     NEEDS_TRAINING=1
   fi
 fi

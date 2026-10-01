@@ -31,7 +31,7 @@ class EchoModel(nn.Module):
 
 
 def test_chat_demo_end_to_end(tmp_path):
-    corpus = "".join(chr(i) for i in range(32, 127)) + (
+    corpus = "\n" + "".join(chr(i) for i in range(32, 127)) + (
         "Context User Assistant hello python RAG memory streaming demo "
         "ChatV1 is an original research AI system. "
         "Python authentication and RAG are supported."

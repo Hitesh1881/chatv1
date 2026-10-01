@@ -39,6 +39,30 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().view(b, t, c)
         return self.dropout(self.proj(y))
 
+    def forward_cached(self, x: torch.Tensor, past_key_value=None):
+        b, t, c = x.shape
+        q, k, v = self.qkv(x).split(c, dim=-1)
+        q = q.view(b, t, self.n_head, self.head_dim).transpose(1, 2)
+        k = k.view(b, t, self.n_head, self.head_dim).transpose(1, 2)
+        v = v.view(b, t, self.n_head, self.head_dim).transpose(1, 2)
+        if past_key_value is not None:
+            past_k, past_v = past_key_value
+            k = torch.cat((past_k, k), dim=2)
+            v = torch.cat((past_v, v), dim=2)
+        att = (q @ k.transpose(-2, -1)) / (self.head_dim ** 0.5)
+        if t > 1:
+            total = k.size(2)
+            past = total - t
+            mask = torch.tril(
+                torch.ones(t, total, device=x.device, dtype=torch.bool),
+                diagonal=past,
+            )
+            att = att.masked_fill(~mask.view(1, 1, t, total), float("-inf"))
+        att = torch.softmax(att, dim=-1)
+        y = att @ v
+        y = y.transpose(1, 2).contiguous().view(b, t, c)
+        return self.dropout(self.proj(y)), (k, v)
+
 
 class MLP(nn.Module):
     def __init__(self, cfg: ModelConfig):
@@ -60,6 +84,11 @@ class Block(nn.Module):
     def forward(self, x):
         x = x + self.attn(self.ln1(x))
         return x + self.mlp(self.ln2(x))
+
+    def forward_cached(self, x: torch.Tensor, past_key_value=None):
+        attn_out, present = self.attn.forward_cached(self.ln1(x), past_key_value)
+        x = x + attn_out
+        return x + self.mlp(self.ln2(x)), present
 
 
 class ChatV1(nn.Module):
@@ -97,12 +126,27 @@ class ChatV1(nn.Module):
 
     @torch.no_grad()
     def generate_stream(self, idx, max_new_tokens=64, temperature=0.8, top_k=40) -> Iterator[int]:
+        idx = idx[:, -self.cfg.block_size:]
+        t = idx.size(1)
+        pos = torch.arange(t, device=idx.device)
+        x = self.drop(self.token_emb(idx) + self.pos_emb(pos))
+        past_key_values = []
+        for block in self.blocks:
+            x, present = block.forward_cached(x)
+            past_key_values.append(present)
+        logits = self.lm_head(self.ln_f(x))
         for _ in range(max_new_tokens):
-            context = idx[:, -self.cfg.block_size:]
-            logits, _ = self(context)
             next_token = self._sample(logits[:, -1, :], temperature, top_k)
-            idx = torch.cat((idx, next_token), dim=1)
             yield int(next_token[0, 0])
+            pos_id = min(t, self.cfg.block_size - 1)
+            x = self.drop(self.token_emb(next_token) + self.pos_emb(torch.tensor([pos_id], device=idx.device)))
+            new_past = []
+            for block, past in zip(self.blocks, past_key_values):
+                x, present = block.forward_cached(x, past)
+                new_past.append(present)
+            past_key_values = new_past
+            logits = self.lm_head(self.ln_f(x))
+            t += 1
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens=64, temperature=0.8, top_k=40):

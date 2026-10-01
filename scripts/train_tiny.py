@@ -8,7 +8,7 @@ from chatv1.device import get_device
 from chatv1.model import ChatV1, ModelConfig
 from chatv1.tokenizer import CharTokenizer
 
-TEXT = """
+TEXT = "".join(chr(i) for i in range(32, 127)) + """
 User: hello
 Assistant: Hello! I am ChatV1, an experimental AI system.
 User: what can you do?

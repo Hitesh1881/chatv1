@@ -8,7 +8,7 @@ from chatv1.device import get_device
 from chatv1.model import ChatV1, ModelConfig
 from chatv1.tokenizer import CharTokenizer
 
-TEXT = "".join(chr(i) for i in range(32, 127)) + """
+TRAINING_VERSION = 2\n\nTEXT = "".join(chr(i) for i in range(32, 127)) + """
 User: hello
 Assistant: Hello! I am ChatV1, an experimental AI system.
 User: what can you do?
@@ -35,7 +35,7 @@ def batch(data: torch.Tensor, block_size: int, batch_size: int, device: torch.de
 
 def save_checkpoint(path: Path, cfg: ModelConfig, tok: CharTokenizer, model: ChatV1, opt, step: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"config": cfg.__dict__, "tokenizer": tok.state_dict(), "state_dict": model.state_dict(), "optimizer": opt.state_dict(), "step": step}, path)
+    torch.save({"training_version": TRAINING_VERSION, "config": cfg.__dict__, "tokenizer": tok.state_dict(), "state_dict": model.state_dict(), "optimizer": opt.state_dict(), "step": step}, path)
 
 
 def main():

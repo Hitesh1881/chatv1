@@ -58,7 +58,7 @@ def save_checkpoint(path: Path, cfg: ModelConfig, tok: CharTokenizer, model: Cha
 
 def main():
     parser = argparse.ArgumentParser(description="Train the small ChatV1 research model")
-    parser.add_argument("--steps", type=int, default=400)
+    parser.add_argument("--steps", type=int, default=2000)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--block-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=3e-4)

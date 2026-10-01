@@ -17,34 +17,7 @@ if ! "$PYTHON" -c "import chatv1" >/dev/null 2>&1; then
   "$PYTHON" -m pip install -e ".[dev,image]"
 fi
 
-CHECKPOINT="$ROOT/artifacts/tiny_chatv1.pt"
 NEEDS_TRAINING=0
-
-if [[ ! -f "$CHECKPOINT" ]]; then
-  NEEDS_TRAINING=1
-else
-  if ! "$PYTHON" - "$CHECKPOINT" <<'PY'
-import sys
-import torch
-from chatv1.tokenizer import CharTokenizer
-
-checkpoint = torch.load(sys.argv[1], map_location="cpu", weights_only=False)
-tokenizer = CharTokenizer.from_state_dict(checkpoint["tokenizer"])
-tokenizer.encode("ok")
-tokenizer.encode("User: hello\nAssistant:")
-if int(checkpoint.get("training_version", 0)) < 3:
-    raise ValueError("training corpus version is stale")
-PY
-  then
-    echo "Existing checkpoint is stale for the current demo."
-    NEEDS_TRAINING=1
-  fi
-fi
-
-if [[ "$NEEDS_TRAINING" -eq 1 ]]; then
-  echo "Training the real ChatV1 tiny model with the current tokenizer..."
-  "$PYTHON" "$ROOT/scripts/train_tiny.py" --steps 3000
-fi
 
 echo "Starting ChatV1 local services..."
 "$PYTHON" "$ROOT/scripts/serve_chat.py" >"$ROOT/artifacts/chat.log" 2>&1 &

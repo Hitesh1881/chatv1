@@ -12,7 +12,7 @@ class TextGenerator(Protocol):
 
 @dataclass(frozen=True)
 class GenerationConfig:
-    max_new_tokens: int = 32
+    max_new_tokens: int = 16
     temperature: float = 0.8
     top_k: int = 40
 

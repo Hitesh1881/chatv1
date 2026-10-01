@@ -39,16 +39,21 @@ class ChatEngine:
         if self.retriever is not None and request.retrieve_top_k:
             results: list[RetrievedChunk] = self.retriever.retrieve(request.prompt, top_k=request.retrieve_top_k)
             parts.append(build_context(results, max_chunks=request.retrieve_top_k))
-        return "\\n\\n".join(parts), memory_count
+        return "\n\n".join(parts), memory_count
 
     def respond(self, request: ChatEngineRequest) -> ChatEngineResponse:
         if not request.conversation_id.strip() or not request.prompt.strip():
             raise ValueError("conversation_id and prompt are required")
         context, memory_count = self._context(request)
-        prompt = f"Context:\\n{context}\\n\\nUser: {request.prompt}\\nAssistant:" if context else f"User: {request.prompt}\\nAssistant:"
+        prompt = f"Context:\n{context}\n\nUser: {request.prompt}\nAssistant:" if context else f"User: {request.prompt}\nAssistant:"
         ids = self.tokenizer.encode(prompt)
         import torch
         input_ids = torch.tensor([ids], dtype=torch.long, device=next(self.model.parameters()).device)
         output = generate_text(self.model, input_ids, request.generation)
-        text = self.tokenizer.decode(output[0].tolist()[len(ids):])
+        # Some causal models truncate long prompts to their context window before
+        # generating. Slice from the actual returned sequence length rather than
+        # the original prompt length, otherwise RAG can make valid generations
+        # look empty when len(ids) > the model's block size.
+        generated_start = min(len(ids), output.size(1))
+        text = self.tokenizer.decode(output[0, generated_start:].tolist())
         return ChatEngineResponse(text=text, context=context, memory_count=memory_count)

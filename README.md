@@ -27,6 +27,20 @@ Build a private AI platform that can progressively support:
 5. Changes are small, reviewable, and reproducible.
 6. Hardware constraints are treated as first-class requirements.
 
+## Local presentation demo
+
+Run the real local demo with:
+
+```bash
+zsh run_demo.sh
+```
+
+The launcher verifies the PyTorch environment, installs project dependencies if needed, trains the tiny ChatV1 checkpoint when missing, starts the real chat API on port 8001, starts the real local Diffusers image API on port 8000, and opens the browser demo.
+
+The image model downloads only when the first image is requested. On an 8 GB Apple Silicon Mac, use 512x512 and modest steps; generation can be slow or memory-constrained. CI success does not substitute for local model verification.
+
+Stop with Ctrl+C.
+
 ## Development stages
 
 1. Repository + CI baseline

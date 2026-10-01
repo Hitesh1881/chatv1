@@ -43,7 +43,7 @@ fi
 
 if [[ "$NEEDS_TRAINING" -eq 1 ]]; then
   echo "Training the real ChatV1 tiny model with the current tokenizer..."
-  "$PYTHON" "$ROOT/scripts/train_tiny.py" --steps 400
+  "$PYTHON" "$ROOT/scripts/train_tiny.py" --steps 2000
 fi
 
 echo "Starting ChatV1 local services..."

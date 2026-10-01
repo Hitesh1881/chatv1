@@ -150,7 +150,28 @@ class ChatV1(nn.Module):
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens=64, temperature=0.8, top_k=40):
-        for token_id in self.generate_stream(idx, max_new_tokens, temperature, top_k):
-            token = torch.tensor([[token_id]], device=idx.device)
-            idx = torch.cat((idx, token), dim=1)
+        idx = idx[:, -self.cfg.block_size:]
+        t = idx.size(1)
+        pos = torch.arange(t, device=idx.device)
+        x = self.drop(self.token_emb(idx) + self.pos_emb(pos))
+        past_key_values = []
+        for block in self.blocks:
+            x, present = block.forward_cached(x)
+            past_key_values.append(present)
+        logits = self.lm_head(self.ln_f(x))
+        for _ in range(max_new_tokens):
+            next_token = self._sample(logits[:, -1, :], temperature, top_k)
+            idx = torch.cat((idx, next_token), dim=1)
+            pos_id = min(t, self.cfg.block_size - 1)
+            x = self.drop(
+                self.token_emb(next_token)
+                + self.pos_emb(torch.tensor([pos_id], device=idx.device))
+            )
+            new_past = []
+            for block, past in zip(self.blocks, past_key_values):
+                x, present = block.forward_cached(x, past)
+                new_past.append(present)
+            past_key_values = new_past
+            logits = self.lm_head(self.ln_f(x))
+            t += 1
         return idx
